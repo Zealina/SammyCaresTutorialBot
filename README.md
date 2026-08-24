@@ -108,7 +108,7 @@ Everything runs from **one process** (`run.py`) by default, sharing a single asy
 | Python | 3.11+ | |
 | MongoDB | Atlas free tier (M0) or self-hosted | `MONGODB_URI` in `.env` |
 | Telegram API credentials | — | From [my.telegram.org](https://my.telegram.org) |
-| Two Telegram bot tokens | — | One per bot, from @BotFather |
+| Two Telegram bot tokens | — | same token for both runner and creator u can keep seperate too|
 
 ---
 
