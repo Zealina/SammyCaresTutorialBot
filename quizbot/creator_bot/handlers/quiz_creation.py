@@ -12,7 +12,7 @@ import dateparser
 from typing import Optional
 
 from pyrogram import Client, filters
-from pyrogram.enums import PollType
+from pyrogram.enums import PollType, ParseMode
 from pyrogram.types import (
     CallbackQuery,
     InlineKeyboardButton,
@@ -264,18 +264,18 @@ async def _finalize_quiz(
             logger.debug("Failed to announce new quiz in BOT_GROUP", exc_info=True)
 
 async def schedule_cb(c: Client, cb: CallbackQuery) -> None:
-    print("I have been summoned to schedule quiz")
-    uid = cb.fron_user.id
-    qid = cb.data.split(":", 1)[1]
+    uid = cb.from_user.id
+    qid = cb.data.split("_", 1)[1]
 
+    state.quiz_scheduling[uid] = {}
     ub = state.quiz_scheduling[uid]
     ub["qid"] = qid
 
-    await cb.answer(
+    await cb.message.reply_text(
         "📆 What time would you like to schedule this?\n\n"
         "Please send the date and time, for example:\n"
         "`27 Aug 2026 8:30 PM`",
-        parse_mode="Markdown"
+        parse_mode=ParseMode.MARKDOWN
     )
     return
 
@@ -290,9 +290,15 @@ async def handle_scheduling_message(c: Client, m: Message) -> None:
     if not scheduled_time:
         await m.reply("⚠ Invalid time")
         return
+
+    scheduled_time = scheduled_time.strftime("%Y%m%dT%H%M%S")
+    me = await c.get_me()
+    qid = ub["qid"]
+    url = f"https://t.me/{me.username}?startgroup=schedule_{qid}_{str(scheduled_time)}"
+
     kb = InlineKeyboardMarkup(
             [
-                [InlineKeyboardButton("👥Select Group", url=f"https://t.me/{me.username}?startgroup=schedule_{ub['qid']}_{str(scheduled_time)}")],
+                [InlineKeyboardButton("👥Select Group", url=url)],
             ]
         )
     await m.reply(
@@ -644,7 +650,7 @@ def register(app: Client) -> None:
     app.on_message(filters.command("create") & filters.private)(create_cmd)
     app.on_message(filters.command("done") & filters.private)(done_cmd)
     app.on_message(filters.command("cancel") & filters.private)(cancel_cmd)
-    app.on_callback_query()(schedule_cb)
+    app.on_callback_query(filters.regex(r"^schedule_[A-Z0-9]+$"))(schedule_cb)
     app.on_callback_query(filters.regex(r"^qd_(use|manual)_\d+$"))(quicksave_cb)
     app.on_callback_query(filters.regex(r"^dtc_(yes|no)_\d+$"))(default_text_confirm_cb)
     app.on_message(filters.document & filters.private & in_quiz_creation_filter())(handle_document)
@@ -655,8 +661,7 @@ def register(app: Client) -> None:
         & ~filters.command(_RESERVED_COMMANDS)
     )(handle_creation_message)
     app.on_message(
-        filters.text
-        & filters.private
-        & in_quiz_scheduling_filter()
-        & ~filters.command(_RESERVED_COMMANDS)
-    )(handle_scheduling_message)
+            filters.text
+            & filters.private
+            & ~filters.command(_RESERVED_COMMANDS)
+        )(handle_scheduling_message)

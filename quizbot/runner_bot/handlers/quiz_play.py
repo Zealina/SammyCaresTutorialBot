@@ -55,6 +55,7 @@ from ..telegram_utils import (
     safe_send_poll,
     send_raw_api,
 )
+from .scheduling import schedule_command
 
 logger = logging.getLogger(__name__)
 
@@ -1257,6 +1258,13 @@ async def start_quiz(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             await safe_send_message(ctx, chat_id, welcome, parse_mode=ParseMode.HTML)
             return
 
+        if ctx.args[0].startswith("schedule_"):
+            pay_ld = ctx.args[0]
+            cmd, quiz_id, time = pay_ld.split("_")
+            ctx.args[0] = quiz_id
+            ctx.args.append(time)
+            await schedule_command(update, ctx)
+            return
         qid = ctx.args[0]
         skip = int(ctx.args[1]) if len(ctx.args) > 1 and ctx.args[1].isdigit() else 0
 

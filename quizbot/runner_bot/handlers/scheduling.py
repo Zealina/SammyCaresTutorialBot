@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+import dateparser
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -146,10 +147,11 @@ def init_schedule_manager(scheduler: AsyncIOScheduler) -> ScheduledQuizManager:
     """Called once from bot.py after the shared scheduler is created."""
     global schedule_mgr
     schedule_mgr = ScheduledQuizManager(scheduler)
+    print("The Schedule manager was called")
     return schedule_mgr
 
 
-async def schedule_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+async def schedule_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE, fn_time_str: str = None, qid=None) -> None:
     """`/schedule QUIZ_ID HH:MM` -- schedule a quiz to auto-launch today
     (or tomorrow if the time has already passed), IST."""
     chat_id = update.message.chat_id
@@ -180,16 +182,17 @@ async def schedule_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
             return
 
         qid, time_str = ctx.args[0], ctx.args[1]
-        try:
-            h, m = map(int, time_str.split(":"))
-            if not (0 <= h <= 23 and 0 <= m <= 59):
-                raise ValueError
-        except Exception:
-            await safe_send_message(ctx, chat_id, "❌ Invalid time. Use HH:MM (24h).")
-            return
+        
+        sched_time = dateparser.parse(time_str)
+        if not sched_time:
+            try:
+                sched_time = datetime.strptime(time_str, "%Y%m%dT%H%M%S")
+            except Exception:
+                await safe_send_message(ctx, chat_id, "❌ Invalid time. Use HH:MM (24h).")
+                return
 
         now = datetime.now(IST)
-        sched_time = now.replace(hour=h, minute=m, second=0, microsecond=0)
+        sched_time = sched_time.replace(tzinfo=IST)
         if sched_time <= now:
             sched_time += timedelta(days=1)
 

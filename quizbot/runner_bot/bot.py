@@ -44,17 +44,17 @@ async def post_shutdown(application: Application) -> None:
 def build_application() -> Application:
     """Construct the PTB Application with every handler registered."""
     application = (
-        Application.builder()
-        .token(config.RUNNER_BOT_TOKEN)
-        .concurrent_updates(True)
-        .connect_timeout(30)
-        .read_timeout(30)
-        .write_timeout(30)
-        .pool_timeout(30)
-        .post_init(post_init)
-        .post_shutdown(post_shutdown)
-        .build()
-    )
+            Application.builder()
+            .token(config.RUNNER_BOT_TOKEN)
+            .concurrent_updates(True)
+            .connect_timeout(30)
+            .read_timeout(30)
+            .write_timeout(30)
+            .pool_timeout(30)
+            .post_init(post_init)
+            .post_shutdown(post_shutdown)
+            .build()
+            )
     handlers.register(application)
     return application
 
