@@ -70,6 +70,12 @@ async def run_runner_bot() -> None:
     application = build_application()
 
     await application.initialize()
+    # NOTE: unlike run_polling()/run_webhook(), initialize() does NOT invoke
+    # post_init -- we're driving the lifecycle manually here so we have to
+    # call it ourselves, or schedule_mgr (and anything else set up in
+    # post_init) stays None forever.
+    if application.post_init:
+        await application.post_init(application)
     await application.start()
     await application.updater.start_polling(
         allowed_updates=Update.ALL_TYPES,
@@ -85,4 +91,8 @@ async def run_runner_bot() -> None:
         logger.info("Runner Bot shutting down...")
         await application.updater.stop()
         await application.stop()
+        # Same story as post_init: shutdown() doesn't call post_shutdown on
+        # its own when we're not using run_polling()/run_webhook().
+        if application.post_shutdown:
+            await application.post_shutdown(application)
         await application.shutdown()

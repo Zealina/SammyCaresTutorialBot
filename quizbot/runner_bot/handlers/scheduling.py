@@ -206,13 +206,14 @@ async def schedule_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE, fn_ti
 
         diff = sched_time - now
         hrs, rem = divmod(int(diff.total_seconds()), 3600)
-        mins, _ = divmod(rem, 60)
+        mins, secs = divmod(rem, 60)
+
         await safe_send_message(
-            ctx, chat_id,
-            f"✅ <b>Scheduled!</b>\n\n\U0001F4DD {quiz.get('quiz_name', 'Quiz')}\n"
-            f"\U0001F550 {sched_time.strftime('%I:%M %p, %d %b')}\n⏱️ In {hrs}h {mins}m",
-            parse_mode=ParseMode.HTML,
-        )
+                ctx, chat_id,
+                f"✅ <b>Scheduled!</b>\n\n📝 {quiz.get('quiz_name', 'Quiz')}\n"
+                f"🕐 {sched_time.strftime('%I:%M %p, %d %b')}\n⏱️ In {hrs}h {mins}m {secs}s",
+                parse_mode=ParseMode.HTML,
+            )
     except Exception as e:
         logger.error("schedule_command error: %s", e, exc_info=True)
 
