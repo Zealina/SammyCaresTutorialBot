@@ -8,6 +8,7 @@ The codebase has been reviewed and verified with the assistance of Claude AI.
 from __future__ import annotations
 
 import logging
+import dateparser
 from typing import Optional
 
 from pyrogram import Client, filters
@@ -29,6 +30,7 @@ from ..parsing import filter_words, parse_question_block, strip_source_noise
 from ..ratelimit import ratelimit
 from ..subscribe_gate import subscribe_gate
 from .file_import import process_uploaded_file
+from quiz_generator import generate_quiz
 
 logger = logging.getLogger(__name__)
 
@@ -223,8 +225,6 @@ async def _finalize_quiz(
         f"❓ **Questions:** {len(quiz['questions'])}\n"
         f"⏱️ **Timer:** {timer}s\n"
         f"🆔 **Quiz ID:** `{qid}`\n"
-        f"\U0001F3F7 **Type:** `{quiz_type}`\n"
-        f"🪭 **Promo:** {promo_flag}\n"
         f"👨‍💼 **Creator:** `{from_user_name}`"
     )
     if sections:
@@ -240,6 +240,7 @@ async def _finalize_quiz(
     kb_buttons = [
         [InlineKeyboardButton("🚀 Start", url=f"https://t.me/{me.username}?start={qid}")],
         [InlineKeyboardButton("👥 Add to Group", url=f"https://t.me/{me.username}?startgroup={qid}")],
+        [InlineKeyboardButton("📆 Schedule in Group", callback_data=f"schedule_{qid}")],
         [InlineKeyboardButton("🔗 Share", switch_inline_query=qid)],
     ]
     # "Play" opens the visual Mini App player right here in this private
@@ -261,6 +262,47 @@ async def _finalize_quiz(
             await c.send_message(config.BOT_GROUP, announce_text, reply_markup=InlineKeyboardMarkup(kb_buttons[:3]))
         except Exception:
             logger.debug("Failed to announce new quiz in BOT_GROUP", exc_info=True)
+
+async def schedule_cb(c: Client, cb: CallbackQuery) -> None:
+    print("I have been summoned to schedule quiz")
+    uid = cb.fron_user.id
+    qid = cb.data.split(":", 1)[1]
+
+    ub = state.quiz_scheduling[uid]
+    ub["qid"] = qid
+
+    await cb.answer(
+        "📆 What time would you like to schedule this?\n\n"
+        "Please send the date and time, for example:\n"
+        "`27 Aug 2026 8:30 PM`",
+        parse_mode="Markdown"
+    )
+    return
+
+async def handle_scheduling_message(c: Client, m: Message) -> None:
+    uid, cid = m.from_user.id, m.chat.id
+    if uid not in state.quiz_scheduling:
+        await m.reply("✘ No quiz to schedule")
+        return
+    ub = state.quiz_scheduling[uid]
+    scheduled_time = dateparser.parse(m.text)
+
+    if not scheduled_time:
+        await m.reply("⚠ Invalid time")
+        return
+    kb = InlineKeyboardMarkup(
+            [
+                [InlineKeyboardButton("👥Select Group", url=f"https://t.me/{me.username}?startgroup=schedule_{ub['qid']}_{str(scheduled_time)}")],
+            ]
+        )
+    await m.reply(
+            f"✅ Schedule time `{str(scheduled_time)}`saved!\n\n"
+            f"Choose the group where you'd like this to be scheduled.\n\n",
+            reply_markup=kb,
+        )
+    del ub
+    return
+
 
 
 async def quicksave_cb(c: Client, cb: CallbackQuery) -> None:
@@ -320,9 +362,9 @@ async def handle_document(c: Client, m: Message) -> None:
         return
     if uid not in state.quiz_creation:
         return
-    allowed_types = ("text/plain", "application/json")
+    allowed_types = ("text/plain", "application/json", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
     if m.document.mime_type not in allowed_types:
-        await m.reply("⚠️ Only .txt or .json files are supported for quiz questions.")
+        await m.reply("⚠️ Only .txt, .json and .docx files are supported for quiz questions.")
         return
 
     status = await m.reply("⏳ Processing...")
@@ -333,9 +375,16 @@ async def handle_document(c: Client, m: Message) -> None:
     user = await UserRepository(get_db()).get_or_create(uid)
     remove_words = user.get("remove_words", [])
 
-    count, error = process_uploaded_file(
-        content, m.document.file_name or "upload.txt", state.quiz_creation[uid]["questions"], remove_words
-    )
+    if m.document.mime_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+        response = await generate_quiz(file_bytes=content, tgm_message=status, no_of_questions=state.quiz_creation[uid]["no_of_questions"])
+        if response["status"] != "complete":
+            error = response["error"]
+        else:
+            count, error = process_uploaded_file(response["formatted_text"], "upload.txt", state.quiz_creation[uid]["questions"], remove_words)
+    else:
+        count, error = process_uploaded_file(
+                content, m.document.file_name or "upload.txt", state.quiz_creation[uid]["questions"], remove_words, file=True
+                )
     if error:
         await status.edit_text(f"❌ Error: {error}")
     else:
@@ -407,7 +456,19 @@ async def handle_creation_message(c: Client, m: Message) -> None:
             return
         ud["quiz_name"] = name
         ud["awaiting_name"] = False
-        await m.reply(f"📝 Name: **{name}**\nSend questions, forward quiz polls, or a .txt file. /cancel to abort.")
+        ud["awaiting_question_number"] = True
+        ud["no_of_questions"] = 20 #default
+        await m.reply(f"📝 Name: **{name}**\nHow many questions would you like to set?")
+        return
+
+    if ud.get("awaiting_question_number"):
+        number = m.text.strip()
+        if not number:
+            await m.reply("⚠ Invalid number")
+            return
+        ud["no_of_questions"] = number
+        ud["awaiting_question_number"] = False
+        await m.reply(f"📝 **\nSend questions, forward quiz polls, or a .txt file. /cancel to abort.")
         return
 
     if ud.get("awaiting_section_choice"):
@@ -421,9 +482,8 @@ async def handle_creation_message(c: Client, m: Message) -> None:
             ud["awaiting_section_count"] = True
             await m.reply("📚 How many sections? (>1)")
         else:
-            ud["timer"] = 20
-            ud["awaiting_promo"] = True
-            await m.reply("📢 Send your promo message (shown periodically). Send 'skip' or 'no' to leave empty.")
+            ud["awaiting_timer"] = True
+            await m.reply("⏲️ Quiz timer in seconds (>10):")
         return
 
     if ud.get("awaiting_section_count"):
@@ -487,54 +547,31 @@ async def handle_creation_message(c: Client, m: Message) -> None:
             ud["awaiting_section_name"] = True
             await m.reply(f"📚 Section {ud['current_section']} name:")
         else:
-            ud["awaiting_promo"] = True
-            await m.reply("📢 Send your promo message (shown periodically). Send 'skip' or 'no' to leave empty.")
-        return
-
-    if ud.get("awaiting_promo"):
-        promo_text = m.text.strip()
-        ud["promo_message"] = None if promo_text.lower() in ("skip", "no", "none", "/skip") else promo_text
-        del ud["awaiting_promo"]
-
-        settings_repo = CreatorSettingsRepository(get_db())
-        settings = await settings_repo.get(uid)
-        default_text = settings.get("default_text")
-        default_text_field = settings.get("default_text_field", "both")
-        if default_text:
-            field_labels = {"question": "questions", "explanation": "explanations", "both": "questions & explanations"}
-            ud["awaiting_default_text_confirm"] = True
-            ud["_dt"] = default_text
-            ud["_dtf"] = default_text_field
-            kb = InlineKeyboardMarkup(
-                [
-                    [
-                        InlineKeyboardButton("✅ Yes, add it", callback_data=f"dtc_yes_{uid}"),
-                        InlineKeyboardButton("⏭️ Skip", callback_data=f"dtc_no_{uid}"),
-                    ]
-                ]
-            )
-            await m.reply(
-                f"💡 **Add default text to {field_labels.get(default_text_field, 'fields')}?**\n\n`{default_text[:100]}`",
-                reply_markup=kb,
-            )
-            return
-        ud["awaiting_type"] = True
-        await m.reply("📊 Type (free/paid)")
+            quiz_type = "free"
+            promo = None
+            sections = ud.get("sections", [])
+            name = m.from_user.first_name if m.from_user else str(uid)
+            await _finalize_quiz(c, m, uid, quiz_type, promo, sections, timer, name)
         return
 
     if ud.get("awaiting_default_text_confirm"):
         return  # handled via the dtc_yes/dtc_no callback
 
-    if ud.get("awaiting_type"):
-        quiz_type = m.text.strip().lower()
-        if quiz_type not in ("free", "paid"):
-            await m.reply("⚠️ Reply free or paid.")
+    if ud.get("awaiting_timer"):
+        no_section_timer = m.text.strip()
+        try:
+            no_section_timer = int(no_section_timer)
+            if no_section_timer <= 10:
+                raise ValueError
+        except ValueError:
+            await m.reply("⚠ Enter a number > 10")
             return
-        timer = ud.get("timer") or 20
+        del ud["awaiting_timer"]
         sections = ud.get("sections", [])
-        promo = ud.get("promo_message")
+        promo = None
         name = m.from_user.first_name if m.from_user else str(uid)
-        await _finalize_quiz(c, m, uid, quiz_type, promo, sections, timer, name)
+        quiz_type = "free"
+        await _finalize_quiz(c, m, uid, quiz_type, promo, sections, no_section_timer, name)
         return
 
     # ── Free-text question paste ──────────────────────────────────────
@@ -598,11 +635,16 @@ def in_quiz_creation_filter():
 
     return filters.create(func)
 
+def in_quiz_scheduling_filter():
+    async def func(_, __, m: Message) -> bool:
+        return bool(m.from_user) and m.from_user.id in state.quiz_scheduling
+
 
 def register(app: Client) -> None:
     app.on_message(filters.command("create") & filters.private)(create_cmd)
     app.on_message(filters.command("done") & filters.private)(done_cmd)
     app.on_message(filters.command("cancel") & filters.private)(cancel_cmd)
+    app.on_callback_query()(schedule_cb)
     app.on_callback_query(filters.regex(r"^qd_(use|manual)_\d+$"))(quicksave_cb)
     app.on_callback_query(filters.regex(r"^dtc_(yes|no)_\d+$"))(default_text_confirm_cb)
     app.on_message(filters.document & filters.private & in_quiz_creation_filter())(handle_document)
@@ -612,3 +654,9 @@ def register(app: Client) -> None:
         & in_quiz_creation_filter()
         & ~filters.command(_RESERVED_COMMANDS)
     )(handle_creation_message)
+    app.on_message(
+        filters.text
+        & filters.private
+        & in_quiz_scheduling_filter()
+        & ~filters.command(_RESERVED_COMMANDS)
+    )(handle_scheduling_message)

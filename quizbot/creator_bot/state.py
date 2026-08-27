@@ -67,6 +67,10 @@ pending_payments: dict[str, dict[str, Any]] = {}
 # uid -> {"data": [...], "timestamp": float}
 _quiz_list_cache: dict[int, dict[str, Any]] = {}
 
+# ─── Quiz-scheduling wizard (callback button  ... schedule created) ────────────────────────────
+# uid -> {questions: [...], quiz_name, timer, awaiting_*, sections, ...}
+quiz_scheduling = SessionStore()
+
 
 def save_quiz_list_cache(uid: int, quizzes: list[dict]) -> None:
     _quiz_list_cache[uid] = {"data": quizzes, "timestamp": time.time()}

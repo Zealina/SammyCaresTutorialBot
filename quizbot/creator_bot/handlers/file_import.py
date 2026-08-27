@@ -169,19 +169,18 @@ def _process_json(raw: dict, remove_words: list[str], out_questions: list[dict])
 
 
 def process_uploaded_file(
-    content: bytes, filename: str, out_questions: list[dict], remove_words: list[str]
+        content: bytes, filename: str, out_questions: list[dict], remove_words: list[str], file: bool = False
 ) -> tuple[Optional[int], Optional[str]]:
     """Parse an uploaded .txt or .json quiz-question file (bytes already in
     memory) and append parsed questions to `out_questions` in place.
     Returns (count_processed, error_message).
     """
+    text = content
     lower = filename.lower()
     try:
-        text = content.decode("utf-8")
-    except UnicodeDecodeError:
-        return None, "❌ File is not valid UTF-8 text."
-
-    try:
+        if file:
+            text = text.decode("utf-8")
+            print("Text Decoded: ", text)
         if lower.endswith(".json"):
             data = json.loads(text)
             if not isinstance(data, dict) or "questions" not in data:

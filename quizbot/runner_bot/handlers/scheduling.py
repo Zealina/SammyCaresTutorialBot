@@ -27,7 +27,7 @@ from ..telegram_utils import safe_send_message
 
 logger = logging.getLogger(__name__)
 
-IST = pytz.timezone("Asia/Kolkata")
+IST = pytz.timezone("Africa/Lagos")
 
 
 class ScheduledQuizManager:
