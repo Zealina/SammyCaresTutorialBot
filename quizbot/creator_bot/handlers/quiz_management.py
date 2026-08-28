@@ -332,8 +332,12 @@ async def ban_cmd(c: Client, m: Message) -> None:
 async def listquiz_cmd(c: Client, m: Message) -> None:
     """/listquiz -- (in a designated group chat) list every quiz on the
     platform, one message per quiz."""
-    if not config.BOT_GROUP or m.chat.id != config.BOT_GROUP:
+    is_owner = bool(m.from_user) and m.from_user.id == config.OWNER_ID
+    in_bot_group = bool(config.BOT_GROUP) and m.chat.id == config.BOT_GROUP
+
+    if not (in_bot_group or is_owner):
         return
+
     quizzes = await QuizRepository(get_db()).list_all(limit=200)
     if not quizzes:
         await m.reply("📋 No quizzes.")

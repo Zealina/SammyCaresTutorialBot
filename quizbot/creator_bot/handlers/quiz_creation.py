@@ -651,6 +651,7 @@ def in_quiz_creation_filter():
 def in_quiz_scheduling_filter():
     async def func(_, __, m: Message) -> bool:
         return bool(m.from_user) and m.from_user.id in state.quiz_scheduling
+    return filters.create(func)
 
 
 def register(app: Client) -> None:
@@ -670,5 +671,6 @@ def register(app: Client) -> None:
     app.on_message(
             filters.text
             & filters.private
+            & in_quiz_scheduling_filter()
             & ~filters.command(_RESERVED_COMMANDS)
         )(handle_scheduling_message)
