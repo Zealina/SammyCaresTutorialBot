@@ -212,7 +212,7 @@ async def schedule_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE, fn_ti
         await safe_send_message(
                 ctx, chat_id,
                 f"✅ <b>Scheduled Quiz Alert!</b>\n\n📝 {quiz.get('quiz_name', 'Quiz')}\n"
-                f"🕐 {sched_time.strftime('%I:%M %p, %d %b')}\n⏱️ In {hrs}h {mins}m {secs}s",
+                f"🕐 {sched_time.strftime('%a %b %d %I:%M %p')}\n⏱️ In {hrs}h {mins}m {secs}s",
                 parse_mode=ParseMode.HTML,
             )
     except Exception as e:
