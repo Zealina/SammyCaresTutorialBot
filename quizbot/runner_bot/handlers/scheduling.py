@@ -147,7 +147,6 @@ def init_schedule_manager(scheduler: AsyncIOScheduler) -> ScheduledQuizManager:
     """Called once from bot.py after the shared scheduler is created."""
     global schedule_mgr
     schedule_mgr = ScheduledQuizManager(scheduler)
-    print("The Schedule manager was called")
     return schedule_mgr
 
 
@@ -192,9 +191,12 @@ async def schedule_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE, fn_ti
                 return
 
         now = datetime.now(IST)
-        sched_time = sched_time.replace(tzinfo=IST)
-        if sched_time <= now:
+        sched_time = IST.localize(sched_time)
+            
+        while sched_time <= now:
             sched_time += timedelta(days=1)
+
+        diff = sched_time - now
 
         quiz_repo = QuizRepository(get_db())
         quiz = await quiz_repo.get(qid)
@@ -204,13 +206,12 @@ async def schedule_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE, fn_ti
 
         await schedule_mgr.add(chat_id, qid, sched_time, user_id, ctx)
 
-        diff = sched_time - now
         hrs, rem = divmod(int(diff.total_seconds()), 3600)
         mins, secs = divmod(rem, 60)
 
         await safe_send_message(
                 ctx, chat_id,
-                f"✅ <b>Scheduled!</b>\n\n📝 {quiz.get('quiz_name', 'Quiz')}\n"
+                f"✅ <b>Scheduled Quiz Alert!</b>\n\n📝 {quiz.get('quiz_name', 'Quiz')}\n"
                 f"🕐 {sched_time.strftime('%I:%M %p, %d %b')}\n⏱️ In {hrs}h {mins}m {secs}s",
                 parse_mode=ParseMode.HTML,
             )

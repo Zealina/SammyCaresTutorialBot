@@ -177,10 +177,21 @@ def process_uploaded_file(
     """
     text = content
     lower = filename.lower()
+
+    if file:
+        try:
+            text = content.decode("utf-8")
+        except UnicodeDecodeError:
+            return None, "❌ File is not valid UTF-8 text"
+
+    if isinstance(text, str):
+        # Normalize Windows (\r\n) and old Mac (\r) line endings to \n.
+        # Without this, a "blank line" in a CRLF file is \r\n\r\n, which
+        # never matches the "\n\n" block separator below, so an entire
+        # multi-question .txt file gets treated as a single unparsable
+        # block and 0 questions get processed.
+        text = text.replace("\r\n", "\n").replace("\r", "\n")
     try:
-        if file:
-            text = text.decode("utf-8")
-            print("Text Decoded: ", text)
         if lower.endswith(".json"):
             data = json.loads(text)
             if not isinstance(data, dict) or "questions" not in data:
@@ -189,7 +200,7 @@ def process_uploaded_file(
         elif lower.endswith(".txt"):
             count = _process_txt(text, remove_words, out_questions)
         else:
-            return None, "❌ Only .txt and .json files are supported."
+            return None, "❌ Only .txt and .json and .docx files are supported."
         return count, None
     except json.JSONDecodeError as exc:
         return None, f"❌ Invalid JSON format: {exc}"

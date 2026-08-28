@@ -566,11 +566,7 @@ async def _send_start_card(ctx: ContextTypes.DEFAULT_TYPE, chat_id: int, quiz: d
             card += f"\n   • {sec.get('name', '?')} — Q{r[0]}–{r[1]} ({sec.get('timer', timer)}s)"
     card += (
         f"\n✅ <b>Correct mark:</b> +{cm}\n➖ <b>Negative:</b> {neg_str}\n"
-        f"\U0001F500 <b>Shuffle Q:</b> {shuffle_q}  |  <b>Options:</b> {shuffle_o}\n"
-        f"\U0001F4A1 <b>Show explanation:</b> {'✅ Yes' if quiz.get('show_explanation') else '❌ No'}"
     )
-    if chat_type in ("group", "supergroup"):
-        card += f"\n\U0001F6E1 <b>Anti-Cheat:</b> {'✅ On' if quiz.get('anti_cheat') else '❌ Off'}"
     if has_multi:
         card += "\n\U0001F522 <b>Multi-correct</b> questions included"
     if quiz.get("promo_message"):

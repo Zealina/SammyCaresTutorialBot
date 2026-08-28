@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import dateparser
+from datetime import datetime, timedelta
 from typing import Optional
 
 from pyrogram import Client, filters
@@ -271,10 +272,12 @@ async def schedule_cb(c: Client, cb: CallbackQuery) -> None:
     ub = state.quiz_scheduling[uid]
     ub["qid"] = qid
 
+    display_time = datetime.now().strftime("%a %b %d %I:%M %p")
+
     await cb.message.reply_text(
-        "📆 What time would you like to schedule this?\n\n"
-        "Please send the date and time, for example:\n"
-        "`27 Aug 2026 8:30 PM`",
+        f"📆 What time would you like to schedule this?\n\n"
+        f"Please send the date and time, for example:\n"
+        f"`{display_time}`",
         parse_mode=ParseMode.MARKDOWN
     )
     return
@@ -291,10 +294,14 @@ async def handle_scheduling_message(c: Client, m: Message) -> None:
         await m.reply("⚠ Invalid time")
         return
 
-    scheduled_time = scheduled_time.strftime("%Y%m%dT%H%M%S")
+    while scheduled_time <= datetime.now():
+        scheduled_time += timedelta(days=1)
+
+    url_time = scheduled_time.strftime("%Y%m%dT%H%M%S")
+    display_time = scheduled_time.strftime("%a %b %d %I:%M %p")
     me = await c.get_me()
     qid = ub["qid"]
-    url = f"https://t.me/{me.username}?startgroup=schedule_{qid}_{str(scheduled_time)}"
+    url = f"https://t.me/{me.username}?startgroup=schedule_{qid}_{url_time}"
 
     kb = InlineKeyboardMarkup(
             [
@@ -302,7 +309,7 @@ async def handle_scheduling_message(c: Client, m: Message) -> None:
             ]
         )
     await m.reply(
-            f"✅ Schedule time `{str(scheduled_time)}`saved!\n\n"
+            f"✅ Schedule time `{display_time}` saved!\n\n"
             f"Choose the group where you'd like this to be scheduled.\n\n",
             reply_markup=kb,
         )

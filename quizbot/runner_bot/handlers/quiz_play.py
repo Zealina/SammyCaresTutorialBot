@@ -1339,8 +1339,8 @@ async def start_quiz(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         quiz["question_set_id"] = quiz["qid"]
         quiz["negative_marking"] = quiz.get("negative_marks", 0)
         quiz["correct_mark"] = quiz.get("correct_marks", 1)
-        quiz["shuffle_options"] = bool(quiz.get("shuffle_options", False))
-        quiz["shuffle"] = bool(quiz.get("shuffle_questions", False))
+        quiz["shuffle_options"] = bool(quiz.get("shuffle_options", True))
+        quiz["shuffle"] = bool(quiz.get("shuffle_questions", True))
 
         cmd_thread_id = getattr(update.message, "message_thread_id", None)
         pending_quiz_settings[chat_id] = {

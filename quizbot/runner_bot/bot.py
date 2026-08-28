@@ -70,10 +70,6 @@ async def run_runner_bot() -> None:
     application = build_application()
 
     await application.initialize()
-    # NOTE: unlike run_polling()/run_webhook(), initialize() does NOT invoke
-    # post_init -- we're driving the lifecycle manually here so we have to
-    # call it ourselves, or schedule_mgr (and anything else set up in
-    # post_init) stays None forever.
     if application.post_init:
         await application.post_init(application)
     await application.start()
